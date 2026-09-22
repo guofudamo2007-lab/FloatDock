@@ -8,6 +8,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 using FloatDock.Core;
+using FloatDock.Windows.Media;
 using Microsoft.Win32;
 
 namespace FloatDock.Windows;
@@ -18,6 +19,8 @@ public sealed class DockWindow : Window
     private readonly StackPanel _items = new() { Orientation = Orientation.Horizontal };
     private readonly ScrollViewer _scroll;
     private readonly Border _plate;
+    private readonly Grid _root;
+    private MediaCapsule? _media;
     private readonly Dictionary<string, DockIcon> _icons = new(StringComparer.OrdinalIgnoreCase);
     private readonly DispatcherTimer _windowsTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private readonly DispatcherTimer _focusTimer = new() { Interval = TimeSpan.FromMilliseconds(150) };
@@ -31,12 +34,15 @@ public sealed class DockWindow : Window
         Title = "FloatDock"; WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.NoResize;
         AllowsTransparency = true; Background = Brushes.Transparent; Topmost = true; ShowInTaskbar = false;
         ShowActivated = false; Height = 152; Width = 240; UseLayoutRounding = true;
-        var root = new Grid { Margin = new(12, 0, 12, 0) };
+        _root = new Grid { Margin = new(12, 0, 12, 0) };
+        _root.ColumnDefinitions.Add(new() { Width = GridLength.Auto }); _root.ColumnDefinitions.Add(new());
         _plate = new Border { CornerRadius = new(22), Height = 68, VerticalAlignment = VerticalAlignment.Bottom,
             Margin = new(0, 0, 0, 2), BorderThickness = new(1), IsHitTestVisible = false };
         _scroll = new ScrollViewer { Content = _items, HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden,
             VerticalScrollBarVisibility = ScrollBarVisibility.Disabled, Padding = new(12, 0, 12, 0), CanContentScroll = false };
-        root.Children.Add(_plate); root.Children.Add(_scroll); Content = root;
+        Grid.SetColumn(_plate, 1); Grid.SetColumn(_scroll, 1);
+        _root.Children.Add(_plate); _root.Children.Add(_scroll); Content = _root;
+        ConfigureMedia();
         ApplyPlate();
         SourceInitialized += (_, _) => {
             _handle = new WindowInteropHelper(this).Handle;
@@ -47,7 +53,7 @@ public sealed class DockWindow : Window
         _focusTimer.Tick += (_, _) => RefreshFocus();
         MouseMove += (_, _) => UpdateMotion(); MouseLeave += (_, _) => UpdateMotion();
         _scroll.PreviewMouseWheel += (_, e) => { _scroll.ScrollToHorizontalOffset(_scroll.HorizontalOffset - e.Delta); e.Handled = true; UpdateMotion(); };
-        Closed += (_, _) => { _closed = true; _windowsTimer.Stop(); _focusTimer.Stop(); };
+        Closed += (_, _) => { _closed = true; _windowsTimer.Stop(); _focusTimer.Stop(); _media?.Dispose(); };
     }
 
     private async Task RefreshWindows()
@@ -92,7 +98,9 @@ public sealed class DockWindow : Window
     private void Position()
     {
         var work = SystemParameters.WorkArea;
-        Width = DockModel.ViewportWidth(Math.Max(1, _icons.Count), _settings.IconSize + 24, Math.Max(0, work.Width - 80)) + 48;
+        if (_media != null) _media.Width = Math.Min(260, work.Width * .45);
+        var mediaWidth = _media == null ? 0 : _media.Width + 12;
+        Width = DockModel.ViewportWidth(Math.Max(1, _icons.Count), _settings.IconSize + 24, Math.Max(0, work.Width - 80 - mediaWidth)) + 48 + mediaWidth;
         Left = work.Left + (work.Width - Width) / 2;
         Top = work.Bottom - Height - 12;
     }
@@ -104,6 +112,7 @@ public sealed class DockWindow : Window
         if (pid != Environment.ProcessId) _foreground = WindowService.Representative(foreground, _icons.Values.SelectMany(icon => icon.Entry.Windows));
         // Keep the HWND alive to observe when a fullscreen application exits.
         var hidden = WindowService.IsFullscreen(foreground, _handle);
+        if (hidden) _media?.ClosePopup();
         Opacity = hidden ? 0 : 1; IsHitTestVisible = !hidden;
         UpdateMotion();
     }
@@ -114,7 +123,7 @@ public sealed class DockWindow : Window
         foreach (var icon in _icons.Values)
         {
             var center = icon.TranslatePoint(new Point(icon.Width / 2, 0), _items).X;
-            var distance = IsMouseOver ? Math.Abs(pointer.X - center) : double.PositiveInfinity;
+            var distance = _scroll.IsMouseOver ? Math.Abs(pointer.X - center) : double.PositiveInfinity;
             icon.SetState(distance, icon.Entry.Windows.Any(w => w.Handle == _foreground), Reduced);
         }
     }
@@ -152,6 +161,7 @@ public sealed class DockWindow : Window
         AddMenu(menu, "添加应用…", AddPin);
         AddMenu(menu, "显示圆角底板", () => { _settings.ShowPlate = !_settings.ShowPlate; ApplyPlate(); Save(); }, _settings.ShowPlate);
         AddMenu(menu, "减少动画", () => { _settings.ReducedMotion = !_settings.ReducedMotion; UpdateMotion(); Save(); }, _settings.ReducedMotion);
+        AddMenu(menu, "媒体胶囊", () => { _settings.ShowMedia = !_settings.ShowMedia; ConfigureMedia(); Position(); Save(); }, _settings.ShowMedia);
         var sizes = new MenuItem { Header = "图标大小" };
         foreach (var size in new[] { 32, 44, 56, 64 })
         {
@@ -161,7 +171,7 @@ public sealed class DockWindow : Window
         }
         menu.Items.Add(sizes); menu.Items.Add(new Separator());
         AddMenu(menu, "Windows 任务栏设置…", () => Launch("ms-settings:taskbar"));
-        AddMenu(menu, "关于 FloatDock", () => MessageBox.Show("FloatDock 0.1 · MIT 开源\n纯图标浮动栏\n\n滚轮横向浏览，右键固定应用。\n可在 Windows 任务栏设置中开启自动隐藏。", "FloatDock"));
+        AddMenu(menu, "关于 FloatDock", () => MessageBox.Show("FloatDock 0.2 · MIT 开源\n浮动图标与媒体控制\n\n图标区滚轮横向浏览，媒体区滚轮切换来源。\n点击媒体胶囊展开播放进度和同步歌词。", "FloatDock"));
         AddMenu(menu, "退出 FloatDock", Close);
         return menu;
     }
@@ -185,6 +195,14 @@ public sealed class DockWindow : Window
     {
         _plate.Background = _settings.ShowPlate ? new SolidColorBrush(Color.FromArgb(210, 24, 29, 41)) : Brushes.Transparent;
         _plate.BorderBrush = _settings.ShowPlate ? new SolidColorBrush(Color.FromArgb(60, 210, 226, 255)) : Brushes.Transparent;
+    }
+
+    private void ConfigureMedia()
+    {
+        if (_media != null) { _media.Dispose(); _root.Children.Remove(_media); _media = null; }
+        if (!_settings.ShowMedia) return;
+        _media = new MediaCapsule(_settings, Save) { VerticalAlignment = VerticalAlignment.Bottom, Margin = new(0, 0, 12, 6) };
+        Grid.SetColumn(_media, 0); _root.Children.Add(_media);
     }
 
     private void Save()

@@ -6,11 +6,12 @@ using System.Windows.Interop;
 using System.Windows.Threading;
 using FloatDock.Core;
 using FloatDock.Windows;
+using FloatDock.Windows.Media;
 
 internal static class Program
 {
     [STAThread]
-    private static int Main()
+    private static int Main(string[] args)
     {
         _ = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
         Window? host = null;
@@ -53,6 +54,9 @@ internal static class Program
             finally { popup.Close(); }
             Console.WriteLine("PASS WPF largest-icon hover/bounce bounds, raster rendering and reduced-motion reset");
             Console.WriteLine("PASS Win32 owned-dialog foreground mapping");
+            MediaViewTests.Run();
+            if (args.Contains("--media-probe")) ProbeMedia();
+            if (args.Contains("--media-integration")) MediaIntegrationTests.Run(new WindowInteropHelper(host).Handle, Pump);
             return 0;
         }
         catch (Exception ex) { Console.Error.WriteLine("FAIL " + ex.Message); return 1; }
@@ -65,6 +69,23 @@ internal static class Program
         var timer = new DispatcherTimer { Interval = duration };
         timer.Tick += (_, _) => { timer.Stop(); frame.Continue = false; };
         timer.Start(); Dispatcher.PushFrame(frame);
+    }
+
+    private static void ProbeMedia()
+    {
+        using var backend = new WindowsMediaBackend();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var pending = backend.GetSessionsAsync(timeout.Token);
+        while (!pending.IsCompleted) Pump(TimeSpan.FromMilliseconds(50));
+        var (sessions, current) = pending.GetAwaiter().GetResult();
+        Console.WriteLine($"PASS Live GSMTC manager request: sessions={sessions.Count}, currentPresent={current != null}");
+        foreach (var session in sessions.Take(3))
+        {
+            var read = session.ReadAsync(timeout.Token);
+            while (!read.IsCompleted) Pump(TimeSpan.FromMilliseconds(50));
+            var state = read.GetAwaiter().GetResult();
+            Console.WriteLine($"PASS Live session metadata: titlePresent={!string.IsNullOrEmpty(state.Title)}, artworkPresent={state.Artwork != null}, canToggle={state.CanToggle}, canSeek={state.CanSeek}");
+        }
     }
 
     private static void Check(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }

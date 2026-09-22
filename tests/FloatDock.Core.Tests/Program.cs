@@ -2,6 +2,11 @@ using FloatDock.Core;
 
 var tests = new (string Name, Action Run)[]
 {
+    ("LRC handles repeated timestamps, translations, invalid rows and backward seeking", LyricTests.Parse),
+    ("Enhanced LRC uses supplied word times instead of fabricated timing", LyricTests.Words),
+    ("Media timeline handles pause, speed, future timestamps and seek limits", MediaTests.Timeline),
+    ("Media commands target only the selected capable session and preserve refusal", MediaTests.Routing),
+    ("Late media reads cannot overwrite selection or survive disposal", MediaTests.Stale),
     ("Pins and windows merge case-insensitively without duplicate pins", () => {
         var entries = DockModel.Merge([new("Editor", @"C:\Apps\edit.exe"), new("Duplicate", @"c:\apps\EDIT.exe")],
             [new(1, "Document A", @"c:\apps\edit.exe"), new(2, "Document B", @"C:\Apps\EDIT.exe")]);
