@@ -1,0 +1,26 @@
+name: Windows build
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build
+        run: dotnet build FloatDock.slnx -c Release
+      - name: Core behavior tests
+        run: dotnet run --project tests/FloatDock.Core.Tests -c Release --no-build
+      - name: WPF rendering regression
+        run: dotnet run --project tests/FloatDock.Windows.Tests -c Release --no-build
+      - name: Publish portable framework-dependent app
+        run: dotnet publish src/FloatDock.Windows -c Release -r win-x64 --self-contained false -o artifacts/win-x64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FloatDock-win-x64
+          path: artifacts/win-x64/
