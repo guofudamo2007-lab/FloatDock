@@ -2,6 +2,8 @@ using FloatDock.Core;
 
 var tests = new (string Name, Action Run)[]
 {
+    ("Dock magnification expands neighbors symmetrically without overlap and resets on pointer leave", DockMotionTests.Run),
+    ("Native media placement avoids occupied controls, rejects cramped gaps and waits for stable taskbar geometry", NativeTaskbarTests.Run),
     ("LRC handles repeated timestamps, translations, invalid rows and backward seeking", LyricTests.Parse),
     ("Enhanced LRC uses supplied word times instead of fabricated timing", LyricTests.Words),
     ("Media timeline handles pause, speed, future timestamps and seek limits", MediaTests.Timeline),

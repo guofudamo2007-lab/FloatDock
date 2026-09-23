@@ -1,0 +1,12 @@
+# Taskbar Dock Animation Plus 2.0.1: Settings > Textual mode.
+AnimationType: 0
+MaxScale: 125
+EffectRadius: 100
+SpacingFactor: 70
+BounceDelay: 650
+FocusDuration: 180
+DisableVerticalBounce: false
+TaskbarLabelsMode: false
+ExcludeSystemButtonsMode: 2
+LerpSpeed: 35
+DisableBounce: false

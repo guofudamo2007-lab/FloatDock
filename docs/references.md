@@ -1,26 +1,20 @@
-# 效果参考与首版取舍
+# 源码复用与效果参考
 
-研究日期：2026-09-22。以下是产品效果参考，FloatDock 没有引入这些项目的代码或资源。
+研究更新：2026-09-23。
 
-| 项目 | 已查阅内容 | FloatDock 的借鉴点 |
-| --- | --- | --- |
-| [Nexus](https://www.winstep.net/nexus.asp) | 官方首页图片、演示视频片段与效果说明 | 鼠标附近形成连续放大波峰；将悬停、点击和运行状态分开表达 |
-| [MyDockFinder](https://www.mydockfinder.com/index_en) | 官方页面及视频画面中的底部 Dock、功能说明 | 紧凑图标排列、清晰底部状态提示；窗口预览列入后续范围 |
-| [Seelen UI](https://github.com/eythaann/Seelen-UI) | README 的 Dock、主题与窗口管理功能说明；未进行本地体验 | 独立 Dock 与可定制主题的产品组织方式 |
-| [TaskbarX](https://github.com/ChrisAnd1998/TaskbarX) | 官方 README 的居中动画和系统版本限制 | 作为原生任务栏改造路线的比较，不作为本项目首版实现基础 |
-| [AF Media Bar](https://github.com/Fervent-Tempo/AF-Media-Bar) · AmorFate | 用户提供的[抖音视频](https://www.douyin.com/video/7687863850850356495)中紧凑媒体条与展开卡片画面；官方 README 与 MIT 许可证 | v0.2 媒体胶囊、封面信息、悬停播放控制、进度与同步歌词；未复制其代码或素材 |
+v0.1/v0.2 的独立 Dock 与媒体界面曾以产品演示为参考。v0.3 已实际引入源码，不能再称“全部独立实现”。完整权利声明见 [第三方声明](../THIRD-PARTY-NOTICES.md)。
 
-这些参考的动画时长没有逐帧测量。本项目下列数值是自行选择的初始参数，需要真人体验后调整：
+| 项目 | 当前使用 |
+| --- | --- |
+| Windhawk Windows 11 Taskbar Styler / DockLike | 完整固定版模块源码、内置主题与浮动样式配套配置 |
+| Windhawk Taskbar Dock Animation Plus | 完整固定版模块源码与配套配置；移植余弦缩放、居中累计位移算法 |
+| AF Media Bar | 移植空闲区域、稳定几何/可见性策略，适配其源自 FluentFlyout 的原生子窗口挂载 |
+| Seelen UI | 调研整体 Shell 的功能组织，没有复制代码或素材 |
+| TaskbarXI / RoundedTB / TaskbarX | 比较任务栏改造路线，没有复制代码或素材 |
+| Nexus / MyDockFinder | 早期 Dock 产品效果参考，没有复制代码或素材 |
 
-- 基础图标 44 DIP，间距 24 DIP；支持 32 / 44 / 56 / 64。
-- 悬停最大放大 1.28 倍，上移 16 DIP；相邻图标按距离平滑衰减。
-- 悬停过渡 180 ms；点击弹跳 390 ms，有一次轻回弹。
-- 激活窗口所属图标上移 5 DIP，运行点变为浅蓝短条。
-- 默认没有底板，右键可切换深色半透明圆角底板。
-- 开启减少动画或 Windows 关闭客户端区域动画后，保留状态指示，停止缩放与跳动。
+原生动画使用上游实现，本包初始配置为 125% 放大、100 影响半径、70% 邻居位移。独立 Dock 为 128% 放大、100 DIP 半径、16 DIP 上浮、180 ms WPF 过渡和原有 390 ms 启动回弹。这些值未经本轮真人观感验收。
 
-首版重点是纯图标、轻微浮动和可调运动。窗口预览、图标拖拽排序、自动躲避普通窗口、跨屏 Dock、主题包与独立应用标识分组保留到后续版本。
+AF 复用不能仅依据根目录 MIT 判断：其 TaskbarDockService 文件明确声明 GPL-3.0-or-later 的 FluentFlyout 来源。相关来源链、许可证、模块版本与本地哈希均随包提供。
 
-AF Media Bar 原项目为 MIT，署名 Copyright (c) 2026 AmorFate。FloatDock 的媒体实现独立编写，仅借鉴交互方向；本版未实现参考视频里的音频设备切换、每应用音量和频谱。卡片与胶囊示例图片由本项目自己的 WPF 测试控件使用合成歌曲和歌词渲染。
-
-媒体技术依据：[Microsoft GSMTC](https://learn.microsoft.com/en-us/uwp/api/windows.media.control.globalsystemmediatransportcontrolssessionmanager)、[播放进度命令](https://learn.microsoft.com/en-us/uwp/api/windows.media.control.globalsystemmediatransportcontrolssession.trychangeplaybackpositionasync)与 [LRCLIB API](https://lrclib.net/docs)。原生集成测试通过 [SMTC GetForWindow](https://learn.microsoft.com/en-us/windows/win32/api/systemmediatransportcontrolsinterop/nf-systemmediatransportcontrolsinterop-isystemmediatransportcontrolsinterop-getforwindow) 发布自身的无声测试会话。
+媒体技术依据：[Microsoft GSMTC](https://learn.microsoft.com/en-us/uwp/api/windows.media.control.globalsystemmediatransportcontrolssessionmanager)、[进度命令](https://learn.microsoft.com/en-us/uwp/api/windows.media.control.globalsystemmediatransportcontrolssession.trychangeplaybackpositionasync)和 [LRCLIB API](https://lrclib.net/docs)。未加入音频设备切换、每应用音量或频谱；界面预览是合成数据离线渲染。

@@ -1,0 +1,15 @@
+# Windows 11 Taskbar Styler 1.10: Settings > Textual mode.
+# Built-in DockLike theme by Amber, distributed with the GPL-3.0 styler.
+theme: DockLike
+controlStyles:
+  - target: Taskbar.TaskbarFrame > Grid#RootGrid
+    styles:
+      - Margin=0,1,0,3
+      - CornerRadius=12
+      - BorderThickness=1
+  - target: StackPanel#SystemTrayFrameGrid, Grid#SystemTrayFrameGrid
+    styles:
+      - Margin=8,1,8,3
+# Keep the full host region: a click-through taskbar region can clip child media.
+clickThroughTaskbar: false
+xamlDiagnosticsHandling: alert

@@ -6,9 +6,11 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Effects;
 using System.Windows.Threading;
 using FloatDock.Core;
 using FloatDock.Windows.Media;
+using FloatDock.Windows.Taskbar;
 using Microsoft.Win32;
 
 namespace FloatDock.Windows;
@@ -20,6 +22,12 @@ public sealed class DockWindow : Window
     private readonly ScrollViewer _scroll;
     private readonly Border _plate;
     private readonly Grid _root;
+    private readonly StackPanel _utilities;
+    private readonly Button _clock;
+    private readonly Border _startArea;
+    private DesktopPlacement? _placement;
+    private bool _positioning, _hotkey;
+    private uint _taskbarCreated;
     private MediaCapsule? _media;
     private readonly Dictionary<string, DockIcon> _icons = new(StringComparer.OrdinalIgnoreCase);
     private readonly DispatcherTimer _windowsTimer = new() { Interval = TimeSpan.FromSeconds(1) };
@@ -33,27 +41,47 @@ public sealed class DockWindow : Window
         _settings = settings;
         Title = "FloatDock"; WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.NoResize;
         AllowsTransparency = true; Background = Brushes.Transparent; Topmost = true; ShowInTaskbar = false;
-        ShowActivated = false; Height = 152; Width = 240; UseLayoutRounding = true;
-        _root = new Grid { Margin = new(12, 0, 12, 0) };
+        ShowActivated = false; Height = 140; Width = 520; UseLayoutRounding = true;
+        _root = new Grid { Margin = new(10, 0, 10, 8) };
         _root.ColumnDefinitions.Add(new() { Width = GridLength.Auto }); _root.ColumnDefinitions.Add(new());
-        _plate = new Border { CornerRadius = new(22), Height = 68, VerticalAlignment = VerticalAlignment.Bottom,
-            Margin = new(0, 0, 0, 2), BorderThickness = new(1), IsHitTestVisible = false };
+        _root.ColumnDefinitions.Add(new() { Width = GridLength.Auto }); _root.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
+        _plate = new Border { CornerRadius = new(19), Height = settings.IconSize + 24, VerticalAlignment = VerticalAlignment.Bottom,
+            BorderThickness = new(1), IsHitTestVisible = false, Effect = new DropShadowEffect { BlurRadius = 16, ShadowDepth = 3, Opacity = .2 } };
         _scroll = new ScrollViewer { Content = _items, HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Disabled, Padding = new(12, 0, 12, 0), CanContentScroll = false };
-        Grid.SetColumn(_plate, 1); Grid.SetColumn(_scroll, 1);
-        _root.Children.Add(_plate); _root.Children.Add(_scroll); Content = _root;
+            VerticalScrollBarVisibility = ScrollBarVisibility.Disabled, Padding = new(24, 0, 24, 0), CanContentScroll = false };
+        Grid.SetColumnSpan(_plate, 4); Grid.SetColumn(_scroll, 1);
+        _root.Children.Add(_plate); _root.Children.Add(_scroll);
+        var start = DockChrome.Button("", "开始菜单", OpenStart, 40);
+        var startGlyph = new System.Windows.Shapes.Path { Width = 17, Height = 17, Stretch = Stretch.Fill, Fill = new SolidColorBrush(Color.FromRgb(190, 216, 244)),
+            Data = Geometry.Parse("M0,0 H7 V7 H0 Z M10,0 H17 V7 H10 Z M0,10 H7 V17 H0 Z M10,10 H17 V17 H10 Z") };
+        start.Content = startGlyph;
+        var startArea = _startArea = new Border { Child = start, Width = 52, Height = _plate.Height, VerticalAlignment = VerticalAlignment.Bottom, BorderThickness = new(0, 0, 1, 0), BorderBrush = new SolidColorBrush(Color.FromArgb(24, 255, 255, 255)) };
+        _root.Children.Add(startArea);
+        _utilities = new StackPanel { Orientation = Orientation.Horizontal, Height = _plate.Height, VerticalAlignment = VerticalAlignment.Bottom, Margin = new(4, 0, 7, 0) };
+        _clock = DockChrome.Button(DateTime.Now.ToString("HH:mm"), "日期与时间", () => Launch("ms-settings:dateandtime"), 48); _clock.FontSize = 11;
+        var settingsButton = DockChrome.Button("\uE713", "设置", () => OpenSettings(), 32); settingsButton.FontFamily = new("Segoe MDL2 Assets");
+        var exit = DockChrome.Button("退出", "退出 FloatDock 并还原系统任务栏", Close, 42); exit.FontSize = 11;
+        _utilities.Children.Add(_clock); _utilities.Children.Add(settingsButton); _utilities.Children.Add(exit);
+        Grid.SetColumn(_utilities, 3); _root.Children.Add(_utilities); Content = _root;
+        ContextMenu = CreateMenu(null); ContextMenuOpening += (_, _) => ContextMenu = CreateMenu(null);
         ConfigureMedia();
         ApplyPlate();
         SourceInitialized += (_, _) => {
             _handle = new WindowInteropHelper(this).Handle;
             NativeMethods.SetWindowLong(_handle, -20, NativeMethods.GetWindowLong(_handle, -20) | 0x80 | 0x08000000);
+            HwndSource.FromHwnd(_handle).AddHook(WindowMessage);
+            _hotkey = TaskbarNative.RegisterHotKey(_handle, 1, 0x4003, 0x51); // Ctrl+Alt+Q, no repeat.
+            _taskbarCreated = TaskbarNative.RegisterWindowMessage("TaskbarCreated");
+            ConfigurePlacement();
+            Position();
         };
-        Loaded += async (_, _) => { await RefreshWindows(); _windowsTimer.Start(); _focusTimer.Start(); };
+        Loaded += async (_, _) => { Position(); await RefreshWindows(); _windowsTimer.Start(); _focusTimer.Start(); };
         _windowsTimer.Tick += async (_, _) => await RefreshWindows();
         _focusTimer.Tick += (_, _) => RefreshFocus();
         MouseMove += (_, _) => UpdateMotion(); MouseLeave += (_, _) => UpdateMotion();
         _scroll.PreviewMouseWheel += (_, e) => { _scroll.ScrollToHorizontalOffset(_scroll.HorizontalOffset - e.Delta); e.Handled = true; UpdateMotion(); };
-        Closed += (_, _) => { _closed = true; _windowsTimer.Stop(); _focusTimer.Stop(); _media?.Dispose(); };
+        Closed += (_, _) => { _closed = true; _windowsTimer.Stop(); _focusTimer.Stop(); _media?.Dispose();
+            if (_hotkey) TaskbarNative.UnregisterHotKey(_handle, 1); _placement?.Dispose(); _placement = null; };
     }
 
     private async Task RefreshWindows()
@@ -97,17 +125,25 @@ public sealed class DockWindow : Window
 
     private void Position()
     {
-        var work = SystemParameters.WorkArea;
-        if (_media != null) _media.Width = Math.Min(260, work.Width * .45);
-        var mediaWidth = _media == null ? 0 : _media.Width + 12;
-        Width = DockModel.ViewportWidth(Math.Max(1, _icons.Count), _settings.IconSize + 24, Math.Max(0, work.Width - 80 - mediaWidth)) + 48 + mediaWidth;
-        Left = work.Left + (work.Width - Width) / 2;
-        Top = work.Bottom - Height - 12;
+        if (_positioning || _closed) return; _positioning = true;
+        try
+        {
+            _plate.Height = _settings.IconSize + 24; _utilities.Height = _startArea.Height = _plate.Height;
+            var work = _placement?.Position(this, _plate.Height + 16) ?? SystemParameters.WorkArea;
+            var mediaWidth = _media?.PreferredWidth ?? 0;
+            if (_media != null) _media.Width = mediaWidth;
+            var fixedWidth = 52 + 20 + 48 + 144 + mediaWidth;
+            Width = DockModel.ViewportWidth(Math.Max(1, _icons.Count), _settings.IconSize + 16, Math.Max(0, work.Width - fixedWidth - 24)) + fixedWidth;
+            Left = work.Left + (work.Width - Width) / 2;
+            Top = work.Bottom - Height;
+        }
+        finally { _positioning = false; }
     }
 
     private void RefreshFocus()
     {
         var foreground = NativeMethods.GetForegroundWindow();
+        _clock.Content = DateTime.Now.ToString("HH:mm"); _clock.ToolTip = DateTime.Now.ToString("yyyy年M月d日 dddd");
         NativeMethods.GetWindowThreadProcessId(foreground, out var pid);
         if (pid != Environment.ProcessId) _foreground = WindowService.Representative(foreground, _icons.Values.SelectMany(icon => icon.Entry.Windows));
         // Keep the HWND alive to observe when a fullscreen application exits.
@@ -120,11 +156,15 @@ public sealed class DockWindow : Window
     private void UpdateMotion()
     {
         var pointer = Mouse.GetPosition(_items);
-        foreach (var icon in _icons.Values)
+        var icons = _items.Children.OfType<DockIcon>().ToArray();
+        var centers = icons.Select(icon => icon.TranslatePoint(new Point(icon.Width / 2, 0), _items).X).ToArray();
+        var shifts = DockModel.NeighborShifts(centers, _scroll.IsMouseOver ? pointer.X : double.PositiveInfinity, _settings.IconSize, Reduced);
+        for (var i = 0; i < icons.Length; i++)
         {
-            var center = icon.TranslatePoint(new Point(icon.Width / 2, 0), _items).X;
+            var icon = icons[i];
+            var center = centers[i];
             var distance = _scroll.IsMouseOver ? Math.Abs(pointer.X - center) : double.PositiveInfinity;
-            icon.SetState(distance, icon.Entry.Windows.Any(w => w.Handle == _foreground), Reduced);
+            icon.SetState(distance, icon.Entry.Windows.Any(w => w.Handle == _foreground), Reduced, shifts[i]);
         }
     }
 
@@ -159,11 +199,12 @@ public sealed class DockWindow : Window
             menu.Items.Add(new Separator());
         }
         AddMenu(menu, "添加应用…", AddPin);
+        AddMenu(menu, "接管底部任务栏（退出自动还原）", () => { _settings.ReplaceTaskbar = !_settings.ReplaceTaskbar; ConfigurePlacement(); Position(); Save(); }, _settings.ReplaceTaskbar);
         AddMenu(menu, "显示圆角底板", () => { _settings.ShowPlate = !_settings.ShowPlate; ApplyPlate(); Save(); }, _settings.ShowPlate);
         AddMenu(menu, "减少动画", () => { _settings.ReducedMotion = !_settings.ReducedMotion; UpdateMotion(); Save(); }, _settings.ReducedMotion);
         AddMenu(menu, "媒体胶囊", () => { _settings.ShowMedia = !_settings.ShowMedia; ConfigureMedia(); Position(); Save(); }, _settings.ShowMedia);
         var sizes = new MenuItem { Header = "图标大小" };
-        foreach (var size in new[] { 32, 44, 56, 64 })
+        foreach (var size in new[] { 32, 40, 48, 56, 64 })
         {
             var item = new MenuItem { Header = $"{size} px", IsCheckable = true, IsChecked = _settings.IconSize == size };
             item.Click += (_, _) => { _settings.IconSize = size; _icons.Clear(); _items.Children.Clear(); Save(); _ = RefreshWindows(); };
@@ -171,8 +212,8 @@ public sealed class DockWindow : Window
         }
         menu.Items.Add(sizes); menu.Items.Add(new Separator());
         AddMenu(menu, "Windows 任务栏设置…", () => Launch("ms-settings:taskbar"));
-        AddMenu(menu, "关于 FloatDock", () => MessageBox.Show("FloatDock 0.2 · MIT 开源\n浮动图标与媒体控制\n\n图标区滚轮横向浏览，媒体区滚轮切换来源。\n点击媒体胶囊展开播放进度和同步歌词。", "FloatDock"));
-        AddMenu(menu, "退出 FloatDock", Close);
+        AddMenu(menu, "关于 FloatDock", () => MessageBox.Show("FloatDock 0.3 · GPL-3.0-or-later\n原生任务栏融合与可选独立 Dock\n\n右侧【退出】会还原独立 Dock 接管的任务栏。\nCtrl+Alt+Q 可关闭 Dock（快捷键未被占用时）。\n媒体区点击展开，滚轮切换来源。", "FloatDock"));
+        AddMenu(menu, "退出并还原系统任务栏", Close);
         return menu;
     }
 
@@ -193,16 +234,44 @@ public sealed class DockWindow : Window
 
     private void ApplyPlate()
     {
-        _plate.Background = _settings.ShowPlate ? new SolidColorBrush(Color.FromArgb(210, 24, 29, 41)) : Brushes.Transparent;
-        _plate.BorderBrush = _settings.ShowPlate ? new SolidColorBrush(Color.FromArgb(60, 210, 226, 255)) : Brushes.Transparent;
+        _plate.Background = _settings.ShowPlate ? new SolidColorBrush(Color.FromArgb(242, 29, 34, 44)) : new SolidColorBrush(Color.FromArgb(180, 29, 34, 44));
+        _plate.BorderBrush = new SolidColorBrush(Color.FromArgb(45, 210, 226, 255));
     }
 
     private void ConfigureMedia()
     {
         if (_media != null) { _media.Dispose(); _root.Children.Remove(_media); _media = null; }
         if (!_settings.ShowMedia) return;
-        _media = new MediaCapsule(_settings, Save) { VerticalAlignment = VerticalAlignment.Bottom, Margin = new(0, 0, 12, 6) };
-        Grid.SetColumn(_media, 0); _root.Children.Add(_media);
+        _media = new MediaCapsule(_settings, Save) { VerticalAlignment = VerticalAlignment.Bottom, Margin = new(4, 0, 4, 8) };
+        _media.PresentationChanged += (_, _) => Position();
+        Grid.SetColumn(_media, 2); _root.Children.Add(_media);
+    }
+
+    private void OpenSettings() { var menu = CreateMenu(null); menu.PlacementTarget = _utilities; menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Top; menu.IsOpen = true; }
+    private static void OpenStart()
+    { var taskbar = TaskbarNative.FindWindow("Shell_TrayWnd", null); NativeMethods.SendMessageTimeout(taskbar, 0x112, 0xF130, 0, 2, 1000, out _); }
+    private void ConfigurePlacement()
+    {
+        _placement?.Dispose(); _placement = null;
+        if (!_settings.ReplaceTaskbar || _handle == 0) return;
+        try { _placement = new DesktopPlacement(_handle); }
+        catch (Exception ex) when (ex is InvalidOperationException or Win32Exception or IOException or UnauthorizedAccessException)
+        { _settings.ReplaceTaskbar = false; MessageBox.Show("无法接管任务栏，已还原系统设置。\n" + ex.Message, "FloatDock"); }
+    }
+    private nint WindowMessage(nint hwnd, int message, nint wParam, nint lParam, ref bool handled)
+    {
+        if (message == 0x84 && IsLoaded)
+        {
+            var packed = lParam.ToInt64(); var point = PointFromScreen(new Point((short)(packed & 0xffff), (short)((packed >> 16) & 0xffff)));
+            var plateBounds = _plate.TransformToAncestor(this).TransformBounds(new Rect(_plate.RenderSize));
+            if (!plateBounds.Contains(point) && !_icons.Values.Any(icon => icon.ImageBounds(this).Contains(point)))
+            { handled = true; return -1; } // HTTRANSPARENT: spare animation space must not swallow application clicks.
+        }
+        else if (message == 0x312 && wParam == 1) { handled = true; Close(); }
+        else if ((uint)message == DesktopPlacement.Callback && wParam == 1 || message is 0x7E or 0x2E0)
+        { Dispatcher.BeginInvoke(() => Position()); }
+        else if ((uint)message == _taskbarCreated) { Dispatcher.BeginInvoke(() => { if (!_closed) { ConfigurePlacement(); Position(); } }); }
+        return 0;
     }
 
     private void Save()

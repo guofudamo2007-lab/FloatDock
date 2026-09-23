@@ -17,6 +17,16 @@ internal static class Program
         Window? host = null;
         try
         {
+            if (!args.Contains("--desktop"))
+            {
+                if (args.Any(a => a is "--media-probe" or "--media-integration"))
+                    throw new ArgumentException("Live media checks require explicit --desktop.");
+                MediaViewTests.Run();
+                DockViewTests.Run();
+                FusionViewTests.Run();
+                Console.WriteLine("PASS Offline-only suite: no Window.Show, taskbar mutation or live media access");
+                return 0;
+            }
             // The largest supported icon must not be cut off when hover and launch motion overlap.
             var icon = new DockIcon(new DockEntry("fixture", "Fixture", null, false, []), 64);
             host = new Window { Content = icon, Width = 160, Height = 220, Left = -10000, Top = -10000,
@@ -55,6 +65,7 @@ internal static class Program
             Console.WriteLine("PASS WPF largest-icon hover/bounce bounds, raster rendering and reduced-motion reset");
             Console.WriteLine("PASS Win32 owned-dialog foreground mapping");
             MediaViewTests.Run();
+            DockViewTests.Run();
             if (args.Contains("--media-probe")) ProbeMedia();
             if (args.Contains("--media-integration")) MediaIntegrationTests.Run(new WindowInteropHelper(host).Handle, Pump);
             return 0;

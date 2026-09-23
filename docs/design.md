@@ -1,28 +1,25 @@
-# FloatDock
+# FloatDock v0.3 architecture
 
-独立的 Windows 浮动图标栏，默认透明、无文字标签。鼠标悬停时图标和相邻图标放大抬升；当前应用保持轻微上浮并显示底部状态点；点击有短回弹。右键可显示圆角底板。
+Default entrypoint is FusionWindow, a visible control window. Its constructor has no native taskbar mutations. Start media creates NativeMediaHost; the optional standalone button creates DockWindow. The two modes are mutually exclusive. Closing the control window closes its child surfaces.
 
-## Architecture
+## Native fusion
 
-- .NET 10 / WPF: transparent, borderless desktop window; WPF transforms animate icons.
-- FloatDock.Core: pinned/running application merge, window cycling, motion targets and viewport sizing. No Windows dependencies.
-- FloatDock.Windows: Win32 window discovery, icon extraction, foreground activation, WPF view and local JSON preferences.
-- FloatDock.Core.Tests: dependency-free executable regression suite; nonzero exit on failure.
+Windhawk separately owns native Explorer styling and animation, using vendored pinned modules and the YAML profile under integrations/windhawk. Installing/enabling/disabling those modules is explicit in Windhawk. FloatDock exit does not manage their lifecycle.
 
-The dock stays on the primary display, above the work-area bottom with a 12 DIP gap. When there are too many icons it scrolls horizontally rather than extending beyond the display. It refreshes visible top-level windows every second and foreground state every 150 ms; fullscreen foreground apps hide the dock. The dock never edits Explorer, the registry or taskbar visibility. Users can enable Windows taskbar auto-hide themselves.
+NativeMediaHost adapts AF Media Bar's GPL-derived WS_CHILD/SetParent attachment. It attaches only after explicit Show. A single asynchronous UI Automation probe records taskbar buttons/list items and the native tray; stale/failed results hide the surface. Pure NativeTaskbarPolicy merges occupied intervals, chooses a sufficient free interval, preserves stable placement, and waits for stable geometry after movement. A 32 DIP buffer reduces contact with animated neighbors. Hidden parents, missing/vertical taskbars, undersized intervals and failed placement hide the surface and close the popup. This conservative policy is not proof of compatibility with every Explorer/customization version.
 
-Pins point to local EXE files. Running windows with the same executable share an icon; repeated clicks cycle their windows. A process whose executable is inaccessible remains switchable as a separate window. App titles appear only in tooltips and accessibility names. No telemetry, elevation or autostart. Networking is disabled by default; v0.2 optionally queries LRCLIB after the user enables online lyrics and sees the metadata disclosure.
+The host changes its own styles/parent only; it does not edit taskbar preferences, registry or Explorer code. Its Window child is detached on close. Windhawk's independently enabled modules do execute within Explorer.
 
-Preferences live in `%LOCALAPPDATA%/FloatDock/settings.json`. Invalid preferences fall back in memory with a visible warning; the invalid original is preserved until an explicit settings change. Writes use a temporary file and replacement. Closing FloatDock stops timers and releases the single-instance mutex.
+## Optional independent dock
 
-v0.2 adds an optional media capsule beside the icon area. `FloatDock.Core.Media` owns source selection, timeline calculation and LRC parsing; the Windows layer connects GSMTC, cover art, WPF controls and opt-in lyric lookup. Media uses its own one-second metadata polling and a 100 ms local timeline/lyric clock. Windows commands target a selected session and honor its advertised capabilities. See [media-capsule.md](media-capsule.md).
+Explicit button or --standalone. DesktopPlacement registers an appbar and TaskbarGuard temporarily enables system taskbar auto-hide with an original-state recovery record and watchdog. The visible Exit closes this Dock; the control window, if present, remains available. --restore-taskbar uses a recovery record only, and is a no-op without one.
 
-## Validation and limitations
+WPF icons use ported cosine falloff and cumulative neighbor displacement. App enumeration, window cycling, original launch bounce, fullscreen hiding and local preferences remain available. Reduced motion resets scale, lift, bounce and displacement. System tray/Jump List/previews are supplied by Windows in native mode, not reimplemented by the standalone mode.
 
-Build Release, execute core tests, publish Windows x64, and perform a bounded application startup check. Human acceptance is required for animation feel, real-window switching, DPI/multi-display arrangements and fullscreen behavior. v0.1 does not claim full taskbar parity: system tray, taskbar previews, jump lists, drag reorder, secondary-monitor docks and robust packaged-app grouping are future work.
+## Media and validation
 
-## Alternatives considered
+FloatDock.Core.Media owns source selection, timelines and LRC parsing; WindowsMediaBackend supplies GSMTC and MediaCapsule supplies WPF views. Online lyrics remain opt-in. See media-capsule.md and THIRD-PARTY-NOTICES.md.
 
-WPF provides the smallest locally buildable native Windows prototype. WinUI 3 adds packaging/runtime overhead for this initial scope. Modifying Explorer directly would couple behavior to Windows internals; the user selected the independent dock option.
+Core tests exercise source-independent behavior. Default Windows tests construct unattached controls and rasterize fixtures without Window.Show or live media requests. Native startup/placement and real taskbar recovery tests require explicit desktop flags and are excluded from the normal pipeline.
 
-Reference: https://learn.microsoft.com/dotnet/desktop/wpf/graphics-multimedia/animation-overview
+This iteration was built and checked offline only. Live native media attachment, Explorer restart, fullscreen, DPI, animation clipping, accessibility interaction and appearance acceptance remain unverified. Source review and successful compilation are not desktop acceptance.

@@ -1,0 +1,30 @@
+{
+  "windhawk": {
+    "repository": "https://github.com/ramensoftware/windhawk-mods",
+    "commit": "8b459f67315c49b41708d77606e37cb187931ba5",
+    "files": [
+      {
+        "path": "mods/taskbar-dock-animation-plus.wh.cpp",
+        "bundledPath": "modules/taskbar-dock-animation-plus.wh.cpp",
+        "sha256": "816B9DAFF11E99E82E4780F7EF8314C530BF12E24BF7C033C013E578452BCA0A"
+      },
+      {
+        "path": "mods/windows-11-taskbar-styler.wh.cpp",
+        "bundledPath": "modules/windows-11-taskbar-styler.wh.cpp",
+        "sha256": "067BF8B8D65757E07E385E8F1AF62F1EA2F71EF16F1EAB862A2D3925D28E04E7"
+      }
+    ]
+  },
+  "afMediaBar": {
+    "repository": "https://github.com/Fervent-Tempo/AF-Media-Bar",
+    "commit": "1495d6e8e180a51779b74a8942f8fdbbb98bd19f",
+    "adaptedFiles": [
+      "src/AFMediaBar/Classes/Services/Taskbar/TaskbarDockService.cs",
+      "src/AFMediaBar/Classes/Services/Taskbar/TaskbarFreeRangeCalculator.cs",
+      "src/AFMediaBar/Classes/Services/Taskbar/TaskbarHostVisibilityPolicy.cs",
+      "src/AFMediaBar/Classes/Services/Taskbar/TaskbarMotionPolicy.cs"
+    ],
+    "rootLicense": "MIT",
+    "dockingEngineLicense": "GPL-3.0-or-later (FluentFlyout provenance declared in source)"
+  }
+}

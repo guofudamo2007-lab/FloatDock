@@ -46,6 +46,7 @@ internal sealed class MediaCapsule : Border, IDisposable
     private readonly Button _source;
     private readonly CheckBox _online;
     private readonly StackPanel _compactInfo = new();
+    private readonly Grid _compactLayout;
     private readonly StackPanel _hoverControls;
     private readonly List<(Button Button, MediaCommand Command)> _buttons = [];
     private readonly TranslateTransform _lyricShift = new();
@@ -60,15 +61,17 @@ internal sealed class MediaCapsule : Border, IDisposable
     private bool _polling, _disposed, _started, _commandBusy, _seeking;
     private bool Reduced => _settings.ReducedMotion || !SystemParameters.ClientAreaAnimation;
     internal Border Details => (Border)_popup.Child;
+    internal double PreferredWidth => _display == null ? 36 : 190;
+    internal event EventHandler? PresentationChanged;
 
     public MediaCapsule(DockSettings settings, Action save)
     {
         _settings = settings; _save = save;
-        Width = 260; Height = 64; CornerRadius = new(20); Padding = new(12, 8, 12, 8);
-        Background = new SolidColorBrush(Color.FromArgb(222, 24, 30, 43));
-        BorderBrush = new SolidColorBrush(Color.FromArgb(45, 207, 227, 255)); BorderThickness = new(1);
+        Width = 36; Height = 48; CornerRadius = new(12); Padding = new(4);
+        Background = Brushes.Transparent; BorderThickness = new(0);
         Cursor = Cursors.Hand;
-        var compact = new Grid(); compact.ColumnDefinitions.Add(new() { Width = new(50) }); compact.ColumnDefinitions.Add(new());
+        var compact = _compactLayout = new Grid(); compact.ColumnDefinitions.Add(new() { Width = new(36) }); compact.ColumnDefinitions.Add(new());
+        _cover.Width = 28; _cover.Height = 28;
         _cover.Source = FallbackArtwork(); _cardCover.Source = _cover.Source;
         compact.Children.Add(_cover);
         _compactInfo.VerticalAlignment = VerticalAlignment.Center;
@@ -156,7 +159,12 @@ internal sealed class MediaCapsule : Border, IDisposable
 
     internal void ApplySnapshot(MediaSnapshot? snapshot)
     {
+        var oldWidth = PreferredWidth;
         _display = snapshot;
+        Width = PreferredWidth;
+        _compactInfo.Visibility = _hoverControls.Visibility = snapshot == null ? Visibility.Collapsed : Visibility.Visible;
+        _compactLayout.ColumnDefinitions[0].Width = new(snapshot == null ? 28 : 36);
+        if (oldWidth != PreferredWidth) PresentationChanged?.Invoke(this, EventArgs.Empty);
         var track = snapshot?.Track;
         if (_track != track)
         {
@@ -312,6 +320,7 @@ internal sealed class MediaCapsule : Border, IDisposable
 
     private void Hover(bool hovered)
     {
+        hovered &= _display != null;
         _hoverControls.IsHitTestVisible = hovered;
         var duration = TimeSpan.FromMilliseconds(Reduced ? 0 : 140);
         _hoverControls.BeginAnimation(OpacityProperty, new DoubleAnimation(hovered ? 1 : 0, duration));

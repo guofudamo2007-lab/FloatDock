@@ -1,94 +1,76 @@
 # FloatDock
 
-**让 Windows 的应用图标轻轻浮起来。**
-
-A minimal, open-source floating icon dock with media controls for Windows.
+**Windows 原生任务栏浮动样式、图标动画与媒体控制的融合实验。**
 
 [![Windows build](https://github.com/guofudamo2007-lab/FloatDock/actions/workflows/build.yml/badge.svg)](https://github.com/guofudamo2007-lab/FloatDock/actions/workflows/build.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](LICENSE)
 
-FloatDock 是一个独立浮动图标栏。默认只显示图标，提供悬停放大、邻近联动、选中上浮和点击回弹，可以配合 Windows 任务栏自动隐藏使用。
+v0.3 改用原生任务栏方案：Windhawk 管理系统任务栏的圆角浮动样式与图标动画，FloatDock 将媒体控件嵌入原任务栏空闲位置。默认打开有明确启动、停止和退出按钮的控制窗口；原来的独立 Dock 作为可选模式保留。
 
-**状态：v0.2 开发原型。尚未发布稳定版；动画手感、第三方播放器兼容性和不同缩放配置仍需体验验证。**
+**当前是预览版。编译、核心算法和离线 WPF 布局检查已通过；本轮没有在开发者正在使用的桌面启用效果，原生挂载、DPI、裁剪和组合观感尚未实机验收。**
 
-## 已有功能
+## 实际融合了什么
 
-- 透明无边框浮动栏，主屏幕底部居中。
-- 鼠标靠近时图标平滑放大和上浮，相邻图标轻微联动。
-- 活动应用上浮与浅蓝指示条，运行中的应用显示状态点。
-- 真实应用图标、固定应用、识别运行中的窗口。
-- 点击启动或切换应用；同一程序多窗口循环切换，右键可选具体窗口。
-- 可选圆角半透明底板、四档图标尺寸、减少动画。
-- 图标过多时滚轮横向浏览；全屏应用前台时隐藏 Dock。
-- 可关闭的媒体胶囊：封面、歌曲信息、上一首 / 播放暂停 / 下一首。
-- 展开卡片切换媒体来源、拖动播放进度；支持本地 LRC 同步歌词及增强 LRC 的逐词高亮。
-- 在线歌词匹配可选，默认关闭；未支持的播放器控制自动禁用。
-- 本地 JSON 配置；无需管理员权限，无遥测。
+| 来源 | 本项目的使用方式 |
+| --- | --- |
+| [Windows 11 Taskbar Styler](https://github.com/ramensoftware/windhawk-mods/blob/main/mods/windows-11-taskbar-styler.wh.cpp) | 随包提供固定版本完整源码；DockLike 主题配合本项目浮动间距、圆角配置 |
+| [Taskbar Dock Animation Plus](https://github.com/ramensoftware/windhawk-mods/blob/main/mods/taskbar-dock-animation-plus.wh.cpp) | 随包提供完整原生动画模块和配置；余弦放大、居中邻居位移算法也移植到独立 Dock |
+| [AF Media Bar](https://github.com/Fervent-Tempo/AF-Media-Bar) | 移植任务栏子窗口挂载、空闲范围和稳定可见性策略，接入 FloatDock 的媒体控件 |
 
-## 媒体胶囊
+来源、固定提交和许可证详见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) 与 [PINNED-SOURCES.json](integrations/windhawk/PINNED-SOURCES.json)。不是直接复刻整个 AF Media Bar；音频设备切换、每应用音量和频谱尚未包含。
 
-参考 [AF Media Bar](https://github.com/Fervent-Tempo/AF-Media-Bar) 的紧凑媒体条与悬浮卡片，将控制器放在 Dock 左侧。启动支持 Windows 系统媒体控制的播放器后自动读取歌曲信息。鼠标悬停显示控制按钮，点击空白或封面展开卡片，滚轮切换来源。右键应用图标 → **媒体胶囊** 可关闭整个组件。
+## 使用原生融合模式
 
-![媒体胶囊合成渲染示例](docs/assets/media-capsule.png)
+需要 **Windows 11 x64**、**.NET 10 Desktop Runtime** 和 **Windhawk**。分发包必须完整解压。
 
-![媒体卡片合成渲染示例](docs/assets/media-card.png)
+1. 在 Windhawk 安装 **Windows 11 Taskbar Styler** 和 **Taskbar Dock Animation Plus**。
+2. 分别导入包内 `integrations/windhawk/taskbar-styler.yaml` 和 `dock-animation.yaml`。步骤见[融合配置说明](integrations/windhawk/README.md)。
+3. 打开 `FloatDock.exe`，点击 **启动媒体栏**。它会查找原任务栏的空白处，不创建第二排应用图标。
+4. 点 **停止媒体栏**、媒体条上的 **×**，或 **退出 FloatDock** 关闭媒体组件。
 
-上图是程序真实 WPF 控件的合成数据渲染，用于展示界面；不是第三方播放器实测截图。
+**Windhawk 样式/动画独立运行。退出 FloatDock 不会关闭它们；在 Windhawk 禁用上述两个模块即可移除对应效果。** 本程序不自动安装或启用模块，也不配置开机启动。
 
-卡片中可为当前歌曲导入 `.lrc`；切歌或切换来源会清除该本地歌词。普通 LRC 按行同步，带 `<分:秒>` 时间戳的增强 LRC 按提供的词时间高亮。展开卡片勾选 **在线匹配歌词（LRCLIB）** 后，会把曲名、歌手、专辑和时长发至 `lrclib.net`，设置会保留；关闭选项即停止后续在线请求。没有歌词或匹配失败时仍显示歌曲信息。
+![控制窗口的离线布局渲染](docs/assets/fusion-control.png)
 
-## 运行
+上图来自真实 WPF 控件的离线渲染，不是任务栏实机截图。
 
-目标平台为 Windows 10 1809 及以上 / Windows 11，当前交付构建为 Windows x64，需要 **.NET 10 Desktop Runtime**。开发需要 **.NET 10 SDK**，首次还原会下载 Windows SDK 的 .NET 引用包。
+## 媒体功能
 
-```powershell
-git clone https://github.com/guofudamo2007-lab/FloatDock.git
-cd FloatDock
-dotnet run --project src/FloatDock.Windows
-```
+- 封面、曲名/同步歌词；悬停显示上一首、播放暂停、下一首。
+- 点击展开卡片，切换媒体来源、拖动进度；播放器未支持的操作会禁用。
+- 本地 LRC 按行同步；增强 LRC 按文件提供的词时间高亮。
+- 在线 LRCLIB 匹配默认关闭。主动勾选后发送曲名、歌手、专辑和时长；关闭后停止后续请求。
+- 任务栏空间不足、位置变化或探测结果不可靠时隐藏媒体条；任务栏隐藏时关闭展开面板。
 
-右键任意图标可添加应用、固定/取消固定、调整外观或退出。初始固定文件资源管理器。应用固定目前支持本地 `.exe`，不接受任意命令字符串。
+![媒体卡片合成数据渲染](docs/assets/media-card.png)
 
-想让桌面只剩浮动图标：右键图标 → **Windows 任务栏设置** → 自行启用系统任务栏自动隐藏。FloatDock 不会修改或隐藏系统任务栏。
+原生媒体宿主目前只处理主屏横向任务栏。UI Automation 不能证明覆盖所有系统控件或第三方插件；兼容性仍需独立测试。
 
-配置位置：`%LOCALAPPDATA%\FloatDock\settings.json`。无开机启动项，关闭即可停止运行。
+## 可选独立 Dock
 
-## 构建与检查
+控制窗口的 **可选：独立 Dock**，或显式命令行 `FloatDock.exe --standalone`，会进入独立模式。此模式提供真实应用图标、固定/切换/多窗口轮换、悬停上浮、邻居位移、启动回弹、开始菜单、时钟、设置和退出。
+
+此模式默认临时打开系统任务栏自动隐藏，并为最大化窗口预留底部区域。右端 **退出**、**Ctrl+Alt+Q** 或关闭控制窗口会结束 Dock 并恢复其接管的任务栏状态。快捷键被占用时请使用可见按钮。独立恢复进程处理异常终止；未完成恢复保留记录，下一次主动进入独立模式会尝试恢复。
+
+包内 `restore-taskbar.cmd` / `FloatDock.exe --restore-taskbar` 用于关闭接管中的 Dock 并恢复记录中的状态；没有恢复记录时不改系统设置。它不负责 Windhawk。独立模式不提供系统托盘、窗口缩略图或 Jump List；原生模式仍使用 Windows 原有这些功能。
+
+## 开发与验证
+
+需要 .NET 10 SDK。以下默认检查不会显示窗口或修改任务栏：
 
 ```powershell
 dotnet build FloatDock.slnx -c Release
-dotnet run --project tests/FloatDock.Core.Tests -c Release
-dotnet run --project tests/FloatDock.Windows.Tests -c Release
-dotnet publish src/FloatDock.Windows -c Release -r win-x64 --self-contained false -o artifacts/win-x64
-powershell -ExecutionPolicy Bypass -File scripts/smoke.ps1
+dotnet run --project tests/FloatDock.Core.Tests -c Release --no-build
+dotnet run --project tests/FloatDock.Windows.Tests -c Release --no-build -- --offline
+powershell -File scripts/package.ps1
 ```
 
-发布目录里的 `FloatDock.exe` 可直接运行；分发时保留整个目录。GitHub Actions 也提供构建产物，需要对应 Desktop Runtime。
+打包脚本只编译、复制文件并创建应用/对应源码 ZIP，不启动应用。构建包依赖 .NET 10 Desktop Runtime，保留整个解压目录。
 
-核心测试检查应用合并、窗口轮换、动画目标及屏幕宽度约束。启动检查只证明进程和主窗口建立，**不代表动画观感、点击切换或全屏体验已经通过人工验收**。
+桌面集成测试必须在专门测试桌面显式选择：WPF 测试要求 `--desktop`；任务栏测试脚本要求 `-AllowDesktopChanges`。它们不属于默认 CI。已有旧版桌面检查结果不能替代 v0.3 原生融合验收。
 
-媒体测试还覆盖歌词时间戳、暂停/倍速/跳转、控制命令路由、过期异步响应和 WPF 控件。可在交互式 Windows 桌面额外运行以下原生集成检查：它只发布并控制自身的无声测试会话，退出时清理。
+配置保存在 `%LOCALAPPDATA%\FloatDock\settings.json`。无遥测。Windows 10 1809+ 仅保留独立 Dock 的代码目标，不支持本包的 Windows 11 Styler 外观方案。
 
-```powershell
-dotnet run --project tests/FloatDock.Windows.Tests -c Release -- --media-integration
-```
+## 许可证
 
-## 当前边界
-
-- 只在主屏幕创建一个 Dock；多屏和混合 DPI 尚未完成验收。
-- 按 EXE 路径分组，UWP、宿主进程应用与浏览器 PWA 的身份识别仍有限。
-- 尚无系统托盘、缩略图预览、Jump List、拖拽排序、主题包和自动启动。
-- 普通最大化窗口可能被 Dock 遮挡；后续增加自动躲避与独立自动隐藏。
-- 底板为半透明颜色，不宣称实现系统模糊或 Mica。
-- 媒体功能依赖播放器提供 GSMTC 会话、控制能力和进度；本机原生测试通过不代表所有音乐软件均兼容。
-- 本版不含音频频谱、音频输出设备切换或每应用音量控制，尚未完整复刻 AF Media Bar 的全部功能。
-
-## 参考与贡献
-
-视觉及交互参考 Nexus、MyDockFinder、AF Media Bar，功能组织参考 Seelen UI。具体来源和取舍见 [效果参考](docs/references.md) 和 [媒体胶囊设计](docs/media-capsule.md)。本项目代码独立实现。
-
-阅读 [设计说明](docs/design.md)、[实现计划](docs/implementation-plan.md)、[验证记录](docs/validation.md) 和 [贡献指南](CONTRIBUTING.md)。
-
-## License
-
-[MIT](LICENSE)
+融合后的 FloatDock 应用使用 **GPL-3.0-or-later**，保留历史 FloatDock MIT 权利与所有上游署名。Windhawk 模块各自保持上游许可证。特别是 AF 的任务栏挂载代码标注源自 GPL 的 FluentFlyout，不能仅依据 AF 根目录 MIT 声明分发。

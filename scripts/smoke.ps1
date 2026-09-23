@@ -1,5 +1,6 @@
-param([string]$Executable = "$PSScriptRoot\..\artifacts\win-x64\FloatDock.exe")
+param([string]$Executable = "$PSScriptRoot\..\artifacts\win-x64\FloatDock.exe", [switch]$AllowDesktopChanges)
 $ErrorActionPreference = 'Stop'
+if (-not $AllowDesktopChanges) { throw 'This test opens a window. Use a dedicated test desktop and pass -AllowDesktopChanges.' }
 if (-not ('FloatDockSmokeProbe' -as [type])) {
     Add-Type -TypeDefinition @'
 using System;
@@ -17,7 +18,7 @@ public static class FloatDockSmokeProbe {
             uint owner; GetWindowThreadProcessId(handle, out owner);
             if (owner != processId || !IsWindowVisible(handle)) return true;
             var title = new StringBuilder(128); GetWindowText(handle, title, title.Capacity);
-            if (title.ToString() == "FloatDock") { found = handle; return false; }
+            if (title.ToString().StartsWith("FloatDock")) { found = handle; return false; }
             return true;
         }, IntPtr.Zero);
         return found;

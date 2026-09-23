@@ -14,7 +14,10 @@ internal sealed class DockIcon : Button
     private readonly ScaleTransform _scale = new(1, 1);
     private readonly TranslateTransform _lift = new();
     private readonly TranslateTransform _bounce = new();
+    private readonly TranslateTransform _neighbor = new();
+    private double _shift;
     private readonly Border _indicator;
+    private readonly Image _image;
     private bool _active;
     private MotionTarget _target = new(1, 0);
     public DockEntry Entry { get; private set; }
@@ -22,20 +25,20 @@ internal sealed class DockIcon : Button
     public DockIcon(DockEntry entry, int size)
     {
         Entry = entry;
-        Width = size + 24; Height = 144;
+        Width = size + 16; Height = 132;
         Cursor = Cursors.Hand; Background = Brushes.Transparent; BorderThickness = new(0);
         var presenter = new FrameworkElementFactory(typeof(ContentPresenter));
         Template = new ControlTemplate(typeof(Button)) { VisualTree = presenter };
-        var image = new Image { Source = WindowService.Icon(entry), Width = size, Height = size,
-            VerticalAlignment = VerticalAlignment.Bottom, Margin = new(0, 0, 0, 25), HorizontalAlignment = HorizontalAlignment.Center,
+        var image = _image = new Image { Source = WindowService.Icon(entry), Width = size, Height = size,
+            VerticalAlignment = VerticalAlignment.Bottom, Margin = new(0, 0, 0, 14), HorizontalAlignment = HorizontalAlignment.Center,
             RenderTransformOrigin = new(.5, .8), IsHitTestVisible = false };
         RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality);
         var transforms = new TransformGroup(); transforms.Children.Add(_scale); transforms.Children.Add(_lift); transforms.Children.Add(_bounce);
         image.RenderTransform = transforms;
-        image.Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 12, ShadowDepth = 5, Opacity = .38 };
+        image.Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 6, ShadowDepth = 2, Opacity = .22 };
         _indicator = new Border { Width = 4, Height = 4, CornerRadius = new(2), Background = Brushes.White,
-            VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Center, Margin = new(0, 0, 0, 10) };
-        var grid = new Grid { Background = Brushes.Transparent };
+            VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Center, Margin = new(0, 0, 0, 5) };
+        var grid = new Grid { Background = Brushes.Transparent, RenderTransform = _neighbor };
         grid.Children.Add(image); grid.Children.Add(_indicator); Content = grid;
         ToolTipService.SetInitialShowDelay(this, 550); ToolTipService.SetPlacement(this, System.Windows.Controls.Primitives.PlacementMode.Top);
         Update(entry);
@@ -49,8 +52,12 @@ internal sealed class DockIcon : Button
         _indicator.Visibility = entry.Windows.Count > 0 ? Visibility.Visible : Visibility.Hidden;
     }
 
-    public void SetState(double distance, bool active, bool reduced)
+    internal Rect ImageBounds(Visual ancestor) => _image.TransformToAncestor(ancestor).TransformBounds(new Rect(_image.RenderSize));
+
+    public void SetState(double distance, bool active, bool reduced, double shift = 0)
     {
+        shift = reduced ? 0 : shift;
+        if (_shift != shift) { _shift = shift; Animate(_neighbor, TranslateTransform.XProperty, shift, reduced); }
         if (_active != active)
         {
             _active = active;

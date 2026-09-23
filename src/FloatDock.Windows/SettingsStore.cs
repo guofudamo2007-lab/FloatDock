@@ -6,11 +6,12 @@ namespace FloatDock.Windows;
 
 public sealed class DockSettings
 {
-    public bool ShowPlate { get; set; }
+    public bool ShowPlate { get; set; } = true;
+    public bool ReplaceTaskbar { get; set; } = true;
     public bool ReducedMotion { get; set; }
     public bool ShowMedia { get; set; } = true;
     public bool OnlineLyrics { get; set; }
-    public int IconSize { get; set; } = 44;
+    public int IconSize { get; set; } = 40;
     public List<AppPin> Pins { get; set; } = [new("文件资源管理器", Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe"))];
 }
 

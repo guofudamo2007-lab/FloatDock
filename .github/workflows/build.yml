@@ -16,11 +16,13 @@ jobs:
         run: dotnet build FloatDock.slnx -c Release
       - name: Core behavior tests
         run: dotnet run --project tests/FloatDock.Core.Tests -c Release --no-build
-      - name: WPF rendering regression
-        run: dotnet run --project tests/FloatDock.Windows.Tests -c Release --no-build
-      - name: Publish portable framework-dependent app
-        run: dotnet publish src/FloatDock.Windows -c Release -r win-x64 --self-contained false -o artifacts/win-x64
+      - name: Offline WPF rendering regression
+        run: dotnet run --project tests/FloatDock.Windows.Tests -c Release --no-build -- --offline
+      - name: Package app, corresponding source and integration profiles
+        run: ./scripts/package.ps1
       - uses: actions/upload-artifact@v4
         with:
           name: FloatDock-win-x64
-          path: artifacts/win-x64/
+          path: |
+            artifacts/package-*/*.zip
+            artifacts/package-*/SHA256SUMS.txt

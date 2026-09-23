@@ -34,8 +34,19 @@ public static class DockModel
     public static MotionTarget Motion(double distance, bool active, bool reducedMotion)
     {
         if (reducedMotion) return new(1, 0);
-        var influence = double.IsNaN(distance) ? 0 : Math.Exp(-Math.Pow(distance / 76, 2));
+        // Cosine falloff ported from Taskbar Dock Animation Plus (incconutwo / Ph0en1x-dev, MIT).
+        var influence = !double.IsFinite(distance) || Math.Abs(distance) >= 100 ? 0 : (Math.Cos(Math.Abs(distance) / 100 * Math.PI) + 1) / 2;
         return new(1 + .28 * influence, Math.Max(active ? 5 : 0, 16 * influence));
+    }
+
+    // Upstream's centered cumulative expansion, with full spacing to prevent icon overlap.
+    public static double[] NeighborShifts(IReadOnlyList<double> centers, double pointer, double iconSize, bool reducedMotion)
+    {
+        var extra = centers.Select(x => (Motion(x - pointer, false, reducedMotion).Scale - 1) * Math.Max(0, iconSize)).ToArray();
+        var offset = -extra.Sum() / 2;
+        var shifts = new double[extra.Length];
+        for (var i = 0; i < extra.Length; i++) { shifts[i] = offset + extra[i] / 2; offset += extra[i]; }
+        return shifts;
     }
 
     public static double ViewportWidth(int count, double itemWidth, double availableWidth)
